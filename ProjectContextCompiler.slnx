@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/backend/" />
+  <Folder Name="/backend/src/">
+    <Project Path="backend/src/Pcc.Api/Pcc.Api.csproj" />
+    <Project Path="backend/src/Pcc.Application/Pcc.Application.csproj" />
+    <Project Path="backend/src/Pcc.Domain/Pcc.Domain.csproj" />
+    <Project Path="backend/src/Pcc.Infrastructure/Pcc.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/backend/tests/">
+    <Project Path="backend/tests/Pcc.UnitTests/Pcc.UnitTests.csproj" />
+  </Folder>
+</Solution>

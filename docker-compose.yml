@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: pcc-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pcc
+      POSTGRES_USER: pcc
+      POSTGRES_PASSWORD: pcc
+    ports:
+      - "5432:5432"
+    volumes:
+      - pcc-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pcc -d pcc"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pcc-postgres-data:

@@ -1,0 +1,406 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color: #1c1e21;
+  background: #f4f1ea;
+  font-family: Aptos, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+.button-link {
+  align-items: center;
+  background: #1c1e21;
+  border: 1px solid #1c1e21;
+  border-radius: 6px;
+  color: #fffdf8;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 650;
+  gap: 6px;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 12px;
+  text-decoration: none;
+}
+
+button:disabled {
+  background: #d8d2c7;
+  border-color: #c8c1b4;
+  color: #736b60;
+  cursor: not-allowed;
+}
+
+input,
+textarea {
+  background: #fffdf8;
+  border: 1px solid #c8c1b4;
+  border-radius: 6px;
+  color: #1c1e21;
+  font: inherit;
+  padding: 9px 10px;
+  width: 100%;
+}
+
+textarea {
+  min-height: 190px;
+  resize: vertical;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: #242526;
+  color: #fffdf8;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 18px;
+}
+
+.brand {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.brand-mark {
+  align-items: center;
+  background: #b9852a;
+  border-radius: 6px;
+  color: #1c1e21;
+  display: inline-flex;
+  font-family: "Cascadia Mono", monospace;
+  font-weight: 800;
+  height: 44px;
+  justify-content: center;
+  width: 52px;
+}
+
+.brand strong,
+.brand span {
+  display: block;
+}
+
+.brand span {
+  color: #c8c1b4;
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.create-form {
+  display: grid;
+  gap: 8px;
+}
+
+.project-list {
+  display: grid;
+  gap: 8px;
+  overflow: auto;
+}
+
+.project-link {
+  border: 1px solid #3b3d3f;
+  border-radius: 6px;
+  color: #fffdf8;
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  text-decoration: none;
+}
+
+.project-link span {
+  color: #c8c1b4;
+  font-size: 12px;
+}
+
+.project-link.active {
+  border-color: #b9852a;
+  background: #30312f;
+}
+
+.workspace {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.work-header {
+  align-items: start;
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+}
+
+.work-header h1 {
+  font-size: 28px;
+  line-height: 1.1;
+  margin: 0 0 6px;
+}
+
+.work-header p {
+  color: #5d5a53;
+  margin: 0;
+}
+
+.stat-strip {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(6, minmax(78px, 1fr));
+}
+
+.stat-strip div {
+  border-left: 3px solid #375a7f;
+  background: #fffdf8;
+  padding: 8px 10px;
+}
+
+.stat-strip span,
+.stat-strip strong {
+  display: block;
+}
+
+.stat-strip span {
+  color: #5d5a53;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.stat-strip strong {
+  font-size: 20px;
+}
+
+.stage-tabs,
+.command-bar,
+.review-actions,
+.export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stage-tabs button {
+  background: #fffdf8;
+  color: #1c1e21;
+}
+
+.stage-tabs button.active {
+  background: #28705f;
+  border-color: #28705f;
+  color: #fffdf8;
+}
+
+.panel-grid {
+  align-items: start;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 360px 260px minmax(0, 1fr);
+}
+
+.tool-panel,
+.data-table,
+.requirement-card,
+.export-panel {
+  background: #fffdf8;
+  border: 1px solid #c8c1b4;
+  border-radius: 6px;
+  padding: 14px;
+}
+
+.tool-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.panel-title {
+  color: #375a7f;
+  font-family: "Cascadia Mono", monospace;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+
+.upload-box {
+  align-items: center;
+  border: 1px dashed #a14b36;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  min-height: 90px;
+  justify-content: center;
+}
+
+.upload-box input {
+  display: none;
+}
+
+.data-table {
+  overflow: auto;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+td {
+  border-top: 1px solid #e1d9ca;
+  font-size: 13px;
+  padding: 9px;
+  vertical-align: top;
+}
+
+.status {
+  border: 1px solid #c8c1b4;
+  border-radius: 999px;
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 8px;
+}
+
+.status-approved,
+.status-succeeded,
+.status-read,
+.status-readyforexport {
+  background: #e3f0ea;
+  border-color: #28705f;
+  color: #28705f;
+}
+
+.status-pendingreview,
+.status-running,
+.status-uploaded,
+.status-preview {
+  background: #fff3d7;
+  border-color: #b9852a;
+  color: #7d5817;
+}
+
+.status-rejected,
+.status-failed,
+.status-schemainvalid,
+.status-cancelled {
+  background: #f7dfd7;
+  border-color: #a14b36;
+  color: #a14b36;
+}
+
+.requirements {
+  display: grid;
+  gap: 14px;
+}
+
+.requirement-card header {
+  align-items: start;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.requirement-card h2 {
+  font-size: 20px;
+  margin: 0 0 6px;
+}
+
+.requirement-card p {
+  color: #5d5a53;
+  margin: 0;
+}
+
+.requirement-columns {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 14px 0;
+}
+
+.list-block {
+  border-left: 3px solid #c8c1b4;
+  display: grid;
+  gap: 6px;
+  padding-left: 10px;
+}
+
+.list-block strong {
+  color: #375a7f;
+}
+
+.list-block span {
+  font-size: 13px;
+}
+
+.task-layout {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(420px, 1fr) minmax(360px, 0.8fr);
+}
+
+.graph-panel {
+  background: #fffdf8;
+  border: 1px solid #c8c1b4;
+  border-radius: 6px;
+  height: 520px;
+}
+
+.export-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.export-panel pre {
+  background: #1c1e21;
+  border-radius: 6px;
+  color: #fffdf8;
+  font-family: "Cascadia Mono", monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  max-height: 620px;
+  overflow: auto;
+  padding: 14px;
+  white-space: pre-wrap;
+}
+
+.empty-state {
+  align-items: center;
+  display: flex;
+  min-height: 60vh;
+}
+
+@media (max-width: 980px) {
+  .app-shell,
+  .panel-grid,
+  .task-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    min-height: auto;
+  }
+
+  .work-header {
+    display: grid;
+  }
+
+  .stat-strip,
+  .requirement-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

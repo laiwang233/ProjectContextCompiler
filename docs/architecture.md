@@ -52,7 +52,7 @@ Ant Design 是可见组件和交互状态的主体系，`ConfigProvider` 在根�
 
 当前六阶段 `stageKey` 分别为 `artifacts`、`evidence`、`claims`、`requirements`、`tasks`、`exports`。旧的 section 路由不保留兼容跳转。
 
-前端通过 API client 调用后端，不直接复制后端状态机和导出规则。`Pcc.Api` 从 `backend/src/Pcc.Api/wwwroot` 承载静态前端产物；更新前端后需要把 `frontend/dist` 同步到该目录。
+前端通过 API client 调用后端，不直接复制后端状态机和导出规则。`Pcc.Api` 可从 `backend/src/Pcc.Api/wwwroot` 承载静态前端产物；该目录是本地/发布生成物，不纳入 Git 跟踪。
 
 ## 列表 API 契约（List API Contract）
 

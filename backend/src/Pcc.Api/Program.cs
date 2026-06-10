@@ -56,8 +56,8 @@ projects.MapPost("/", async (CreateProjectRequest request, ICompilerWorkflow wor
     var project = await workflow.CreateProjectAsync(request, ct);
     return Results.Created($"/api/projects/{project.Id}", project);
 });
-projects.MapGet("/", async (ICompilerWorkflow workflow, CancellationToken ct) =>
-    Results.Ok(await workflow.GetProjectsAsync(ct)));
+projects.MapGet("/", async ([AsParameters] ListQueryRequest query, ICompilerWorkflow workflow, CancellationToken ct) =>
+    await QueryResultAsync(() => workflow.GetProjectsAsync(query, ct)));
 projects.MapGet("/{projectId:guid}", async (Guid projectId, ICompilerWorkflow workflow, CancellationToken ct) =>
     Results.Ok(await workflow.GetProjectAsync(projectId, ct)));
 projects.MapPut("/{projectId:guid}", async (Guid projectId, UpdateProjectRequest request, ICompilerWorkflow workflow, CancellationToken ct) =>
@@ -76,28 +76,51 @@ projects.MapPost("/{projectId:guid}/artifacts/upload", async (Guid projectId, IF
     var artifact = await workflow.UploadArtifactAsync(projectId, stream, file.FileName, file.ContentType, ct);
     return Results.Created($"/api/artifacts/{artifact.Id}", artifact);
 }).DisableAntiforgery();
-projects.MapGet("/{projectId:guid}/artifacts", async (Guid projectId, ICompilerWorkflow workflow, CancellationToken ct) =>
-    Results.Ok(await workflow.GetArtifactsAsync(projectId, ct)));
-projects.MapGet("/{projectId:guid}/content-blocks", async (Guid projectId, ICompilerWorkflow workflow, CancellationToken ct) =>
-    Results.Ok(await workflow.GetProjectContentBlocksAsync(projectId, ct)));
+projects.MapGet("/{projectId:guid}/artifacts", async (Guid projectId, [AsParameters] ListQueryRequest query, ICompilerWorkflow workflow, CancellationToken ct) =>
+    await QueryResultAsync(() => workflow.GetArtifactsAsync(projectId, query, ct)));
+projects.MapGet("/{projectId:guid}/content-blocks", async (Guid projectId, [AsParameters] ListQueryRequest query, ICompilerWorkflow workflow, CancellationToken ct) =>
+    await QueryResultAsync(() => workflow.GetProjectContentBlocksAsync(projectId, query, ct)));
 projects.MapPost("/{projectId:guid}/claims/extract", async (Guid projectId, ICompilerWorkflow workflow, CancellationToken ct) =>
-    Results.Ok(await workflow.ExtractClaimsAsync(projectId, ct)));
-projects.MapGet("/{projectId:guid}/claims", async (Guid projectId, ICompilerWorkflow workflow, CancellationToken ct) =>
-    Results.Ok(await workflow.GetClaimsAsync(projectId, ct)));
+{
+    try
+    {
+        return Results.Ok(await workflow.ExtractClaimsAsync(projectId, ct));
+    }
+    catch (ContentBlocksNotVerifiedException ex)
+    {
+        return Results.BadRequest(new
+        {
+            error = "ContentBlocksNotVerified",
+            message = ex.Message
+        });
+    }
+    catch (NoConfirmedContentBlocksException ex)
+    {
+        return Results.BadRequest(new
+        {
+            error = "NoConfirmedContentBlocks",
+            message = ex.Message
+        });
+    }
+});
+projects.MapGet("/{projectId:guid}/claims", async (Guid projectId, [AsParameters] ListQueryRequest query, ICompilerWorkflow workflow, CancellationToken ct) =>
+    await QueryResultAsync(() => workflow.GetClaimsAsync(projectId, query, ct)));
+projects.MapPut("/{projectId:guid}/content-blocks/review", async (Guid projectId, ReviewContentBlocksRequest request, ICompilerWorkflow workflow, CancellationToken ct) =>
+    Results.Ok(await workflow.ReviewContentBlocksAsync(projectId, request, ct)));
 projects.MapPost("/{projectId:guid}/requirements/synthesize", async (Guid projectId, ICompilerWorkflow workflow, CancellationToken ct) =>
     Results.Ok(await workflow.SynthesizeRequirementsAsync(projectId, ct)));
-projects.MapGet("/{projectId:guid}/requirements", async (Guid projectId, ICompilerWorkflow workflow, CancellationToken ct) =>
-    Results.Ok(await workflow.GetRequirementsAsync(projectId, ct)));
-projects.MapGet("/{projectId:guid}/tasks", async (Guid projectId, ICompilerWorkflow workflow, CancellationToken ct) =>
-    Results.Ok(await workflow.GetTasksAsync(projectId, ct)));
-projects.MapGet("/{projectId:guid}/task-dependencies", async (Guid projectId, ICompilerWorkflow workflow, CancellationToken ct) =>
-    Results.Ok(await workflow.GetTaskDependenciesAsync(projectId, ct)));
+projects.MapGet("/{projectId:guid}/requirements", async (Guid projectId, [AsParameters] ListQueryRequest query, ICompilerWorkflow workflow, CancellationToken ct) =>
+    await QueryResultAsync(() => workflow.GetRequirementsAsync(projectId, query, ct)));
+projects.MapGet("/{projectId:guid}/tasks", async (Guid projectId, [AsParameters] ListQueryRequest query, ICompilerWorkflow workflow, CancellationToken ct) =>
+    await QueryResultAsync(() => workflow.GetTasksAsync(projectId, query, ct)));
+projects.MapGet("/{projectId:guid}/task-dependencies", async (Guid projectId, Guid? taskId, ICompilerWorkflow workflow, CancellationToken ct) =>
+    Results.Ok(await workflow.GetTaskDependenciesAsync(projectId, taskId, ct)));
 projects.MapPost("/{projectId:guid}/exports/symphony-markdown", async (Guid projectId, ICompilerWorkflow workflow, CancellationToken ct) =>
     Results.Ok(await workflow.ExportSymphonyMarkdownAsync(projectId, ct)));
-projects.MapGet("/{projectId:guid}/exports", async (Guid projectId, ICompilerWorkflow workflow, CancellationToken ct) =>
-    Results.Ok(await workflow.GetExportsAsync(projectId, ct)));
-projects.MapGet("/{projectId:guid}/model-runs", async (Guid projectId, ICompilerWorkflow workflow, CancellationToken ct) =>
-    Results.Ok(await workflow.GetModelRunsAsync(projectId, ct)));
+projects.MapGet("/{projectId:guid}/exports", async (Guid projectId, [AsParameters] ListQueryRequest query, ICompilerWorkflow workflow, CancellationToken ct) =>
+    await QueryResultAsync(() => workflow.GetExportsAsync(projectId, query, ct)));
+projects.MapGet("/{projectId:guid}/model-runs", async (Guid projectId, [AsParameters] ListQueryRequest query, ICompilerWorkflow workflow, CancellationToken ct) =>
+    await QueryResultAsync(() => workflow.GetModelRunsAsync(projectId, query, ct)));
 
 var artifacts = app.MapGroup("/api/artifacts").WithTags("Artifacts");
 artifacts.MapGet("/{artifactId:guid}", async (Guid artifactId, ICompilerWorkflow workflow, CancellationToken ct) =>
@@ -111,6 +134,10 @@ artifacts.MapPost("/{artifactId:guid}/read", async (Guid artifactId, ICompilerWo
     Results.Ok(await workflow.ReadArtifactAsync(artifactId, ct)));
 artifacts.MapGet("/{artifactId:guid}/content-blocks", async (Guid artifactId, ICompilerWorkflow workflow, CancellationToken ct) =>
     Results.Ok(await workflow.GetContentBlocksAsync(artifactId, ct)));
+
+var contentBlocks = app.MapGroup("/api/content-blocks").WithTags("Content Blocks");
+contentBlocks.MapPut("/{contentBlockId:guid}/review", async (Guid contentBlockId, ReviewContentBlockRequest request, ICompilerWorkflow workflow, CancellationToken ct) =>
+    Results.Ok(await workflow.ReviewContentBlockAsync(contentBlockId, request, ct)));
 
 var claims = app.MapGroup("/api/claims").WithTags("Claims");
 claims.MapGet("/{claimId:guid}", async (Guid claimId, ICompilerWorkflow workflow, CancellationToken ct) =>
@@ -161,4 +188,22 @@ var modelRuns = app.MapGroup("/api/model-runs").WithTags("Model Runs");
 modelRuns.MapGet("/{modelRunId:guid}", async (Guid modelRunId, ICompilerWorkflow workflow, CancellationToken ct) =>
     Results.Ok(await workflow.GetModelRunAsync(modelRunId, ct)));
 
+app.MapFallbackToFile("/projects/{*path:nonfile}", "index.html");
+
 app.Run();
+
+static async Task<IResult> QueryResultAsync<T>(Func<Task<PagedResult<T>>> action)
+{
+    try
+    {
+        return Results.Ok(await action());
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.BadRequest(new
+        {
+            error = "InvalidQuery",
+            message = ex.Message
+        });
+    }
+}

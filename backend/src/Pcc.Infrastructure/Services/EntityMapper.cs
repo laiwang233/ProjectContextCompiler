@@ -36,6 +36,9 @@ public static class EntityMapper
             block.OrderIndex,
             block.Confidence,
             block.MetadataJson,
+            block.VerificationStatus,
+            block.ReviewedBy,
+            block.ReviewedAt,
             block.CreatedAt);
     }
 

@@ -39,6 +39,9 @@ public sealed class PccDbContext(DbContextOptions<PccDbContext> options) : DbCon
             entity.Property(artifact => artifact.RawText).HasColumnType("text");
             entity.Property(artifact => artifact.ReadError).HasColumnType("text");
             entity.HasIndex(artifact => artifact.ProjectId);
+            entity.HasIndex(artifact => new { artifact.ProjectId, artifact.CreatedAt });
+            entity.HasIndex(artifact => new { artifact.ProjectId, artifact.ReadStatus });
+            entity.HasIndex(artifact => new { artifact.ProjectId, artifact.Type });
         });
 
         modelBuilder.Entity<ContentBlock>(entity =>
@@ -47,8 +50,12 @@ public sealed class PccDbContext(DbContextOptions<PccDbContext> options) : DbCon
             entity.HasKey(block => block.Id);
             entity.Property(block => block.Text).HasColumnType("text").IsRequired();
             entity.Property(block => block.MetadataJson).HasColumnType("text");
+            entity.Property(block => block.ReviewedBy).HasMaxLength(160);
             entity.HasIndex(block => block.ProjectId);
             entity.HasIndex(block => block.ArtifactId);
+            entity.HasIndex(block => new { block.ProjectId, block.CreatedAt });
+            entity.HasIndex(block => new { block.ProjectId, block.Type });
+            entity.HasIndex(block => new { block.ProjectId, block.VerificationStatus });
         });
 
         modelBuilder.Entity<Claim>(entity =>
@@ -62,6 +69,9 @@ public sealed class PccDbContext(DbContextOptions<PccDbContext> options) : DbCon
                 .HasForeignKey(evidence => evidence.ClaimId)
                 .OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(claim => claim.ProjectId);
+            entity.HasIndex(claim => new { claim.ProjectId, claim.CreatedAt });
+            entity.HasIndex(claim => new { claim.ProjectId, claim.Status });
+            entity.HasIndex(claim => new { claim.ProjectId, claim.Type });
         });
 
         modelBuilder.Entity<ClaimEvidence>(entity =>
@@ -89,6 +99,9 @@ public sealed class PccDbContext(DbContextOptions<PccDbContext> options) : DbCon
                 .HasForeignKey(review => review.RequirementId)
                 .OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(requirement => requirement.ProjectId);
+            entity.HasIndex(requirement => new { requirement.ProjectId, requirement.UpdatedAt });
+            entity.HasIndex(requirement => new { requirement.ProjectId, requirement.Status });
+            entity.HasIndex(requirement => new { requirement.ProjectId, requirement.RequirementType });
         });
 
         modelBuilder.Entity<RequirementVersion>(entity =>
@@ -126,6 +139,9 @@ public sealed class PccDbContext(DbContextOptions<PccDbContext> options) : DbCon
             entity.Property(task => task.AssumptionsJson).HasColumnType("text").IsRequired();
             entity.HasIndex(task => task.ProjectId);
             entity.HasIndex(task => task.RequirementId);
+            entity.HasIndex(task => new { task.ProjectId, task.CreatedAt });
+            entity.HasIndex(task => new { task.ProjectId, task.Status });
+            entity.HasIndex(task => new { task.ProjectId, task.TaskType });
         });
 
         modelBuilder.Entity<TaskDependency>(entity =>
@@ -140,6 +156,8 @@ public sealed class PccDbContext(DbContextOptions<PccDbContext> options) : DbCon
             entity.ToTable("export_bundles");
             entity.HasKey(bundle => bundle.Id);
             entity.Property(bundle => bundle.Content).HasColumnType("text").IsRequired();
+            entity.HasIndex(bundle => new { bundle.ProjectId, bundle.CreatedAt });
+            entity.HasIndex(bundle => new { bundle.ProjectId, bundle.Format });
         });
 
         modelBuilder.Entity<ModelRun>(entity =>
@@ -153,6 +171,8 @@ public sealed class PccDbContext(DbContextOptions<PccDbContext> options) : DbCon
             entity.Property(run => run.RawOutput).HasColumnType("text");
             entity.Property(run => run.Error).HasColumnType("text");
             entity.HasIndex(run => run.ProjectId);
+            entity.HasIndex(run => new { run.ProjectId, run.CreatedAt });
+            entity.HasIndex(run => new { run.ProjectId, run.Status });
         });
     }
 
@@ -161,6 +181,7 @@ public sealed class PccDbContext(DbContextOptions<PccDbContext> options) : DbCon
         var artifactType = new EnumToStringConverter<ArtifactType>();
         var readStatus = new EnumToStringConverter<ArtifactReadStatus>();
         var blockType = new EnumToStringConverter<ContentBlockType>();
+        var blockVerificationStatus = new EnumToStringConverter<ContentBlockVerificationStatus>();
         var claimType = new EnumToStringConverter<ClaimType>();
         var claimStatus = new EnumToStringConverter<ClaimStatus>();
         var requirementType = new EnumToStringConverter<RequirementType>();
@@ -175,6 +196,7 @@ public sealed class PccDbContext(DbContextOptions<PccDbContext> options) : DbCon
         modelBuilder.Entity<Artifact>().Property(entity => entity.Type).HasConversion(artifactType);
         modelBuilder.Entity<Artifact>().Property(entity => entity.ReadStatus).HasConversion(readStatus);
         modelBuilder.Entity<ContentBlock>().Property(entity => entity.Type).HasConversion(blockType);
+        modelBuilder.Entity<ContentBlock>().Property(entity => entity.VerificationStatus).HasConversion(blockVerificationStatus);
         modelBuilder.Entity<Claim>().Property(entity => entity.Type).HasConversion(claimType);
         modelBuilder.Entity<Claim>().Property(entity => entity.Status).HasConversion(claimStatus);
         modelBuilder.Entity<Requirement>().Property(entity => entity.RequirementType).HasConversion(requirementType);

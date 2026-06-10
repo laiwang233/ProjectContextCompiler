@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
+import "antd/dist/reset.css";
 import "reactflow/dist/style.css";
 import "./styles.css";
 import App from "./App";

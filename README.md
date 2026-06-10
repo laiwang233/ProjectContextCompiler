@@ -2,11 +2,21 @@
 
 MVP implementation for `MVP_Spec.md`.
 
+## Repository harness（仓库 harness）
+
+本仓库把 agent-facing 知识放在 repo-local 文档中：
+
+- [AGENTS.md](AGENTS.md) 是短 agent 入口地图。
+- [docs/README.md](docs/README.md) 是文档索引。
+- [docs/harness-repoization.md](docs/harness-repoization.md) 说明 harness repo 结构和后续工作。
+- [docs/architecture.md](docs/architecture.md)、[docs/operations.md](docs/operations.md)、[docs/testing.md](docs/testing.md) 是主要工程参考。
+
 ## Run
 
 Fast local development path, no Docker required:
 
 ```powershell
+$env:Database__Provider="InMemory"
 dotnet run --project backend/src/Pcc.Api/Pcc.Api.csproj
 ```
 

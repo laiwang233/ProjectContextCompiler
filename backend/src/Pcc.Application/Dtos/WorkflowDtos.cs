@@ -35,6 +35,32 @@ public sealed record UpdateTaskRequest(
     IReadOnlyList<string> MissingContext,
     IReadOnlyList<string> Assumptions);
 
+public sealed record ReviewContentBlockRequest(
+    ContentBlockVerificationStatus VerificationStatus,
+    string ReviewerName);
+
+public sealed record ReviewContentBlocksRequest(
+    IReadOnlyList<Guid> ContentBlockIds,
+    ContentBlockVerificationStatus VerificationStatus,
+    string ReviewerName);
+
+public sealed class ListQueryRequest
+{
+    public int PageNumber { get; init; } = 1;
+    public int PageSize { get; init; } = 20;
+    public string? Q { get; init; }
+    public string? Status { get; init; }
+    public string? Type { get; init; }
+    public string? SortBy { get; init; }
+    public string? SortDirection { get; init; }
+}
+
+public sealed record PagedResult<T>(
+    IReadOnlyList<T> Items,
+    int TotalCount,
+    int PageNumber,
+    int PageSize);
+
 public sealed record ProjectDto(
     Guid Id,
     string Name,
@@ -77,6 +103,9 @@ public sealed record ContentBlockDto(
     int OrderIndex,
     decimal Confidence,
     string? MetadataJson,
+    ContentBlockVerificationStatus VerificationStatus,
+    string? ReviewedBy,
+    DateTimeOffset? ReviewedAt,
     DateTimeOffset CreatedAt);
 
 public sealed record ClaimEvidenceDto(

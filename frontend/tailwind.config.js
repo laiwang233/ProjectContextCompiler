@@ -4,7 +4,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["Aptos", "Segoe UI", "sans-serif"],
+        sans: ["Aptos", "Segoe UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", "sans-serif"],
         mono: ["Cascadia Mono", "Consolas", "monospace"]
       },
       colors: {

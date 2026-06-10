@@ -29,6 +29,28 @@ export type ReviewDecision =
   | "Reject"
   | "Defer";
 
+export type ContentBlockVerificationStatus =
+  | "Pending"
+  | "Confirmed"
+  | "Ignored";
+
+export type ListQuery = {
+  pageNumber?: number;
+  pageSize?: number;
+  q?: string;
+  status?: string;
+  type?: string;
+  sortBy?: string;
+  sortDirection?: "asc" | "desc";
+};
+
+export type PagedResult<T> = {
+  items: T[];
+  totalCount: number;
+  pageNumber: number;
+  pageSize: number;
+};
+
 export type RequirementContent = {
   actors: string[];
   preconditions: string[];
@@ -82,6 +104,9 @@ export type ContentBlock = {
   locationLabel?: string;
   orderIndex: number;
   confidence: number;
+  verificationStatus: ContentBlockVerificationStatus;
+  reviewedBy?: string;
+  reviewedAt?: string;
   createdAt: string;
 };
 
@@ -109,8 +134,8 @@ export type Requirement = {
   currentVersion: number;
   currentVersionId?: string;
   content: RequirementContent;
-  versions: { id: string; version: number; content: RequirementContent; createdAt: string }[];
-  reviews: { id: string; decision: ReviewDecision; reviewerName: string; comment?: string; createdAt: string }[];
+  versions: { id: string; version: number; content: RequirementContent; changeReason?: string; createdBy: string; createdAt: string }[];
+  reviews: { id: string; requirementVersionId: string; decision: ReviewDecision; reviewerName: string; comment?: string; createdAt: string }[];
 };
 
 export type OrchestrationTask = {

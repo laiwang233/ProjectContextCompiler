@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.10",
+    "antd": "^6.4.3",
     "lucide-react": "^0.468.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -17,9 +18,9 @@
     "reactflow": "^11.11.4"
   },
   "devDependencies": {
+    "@types/node": "^24.10.1",
     "@types/react": "^18.2.66",
     "@types/react-dom": "^18.2.22",
-    "@types/node": "^24.10.1",
     "@vitejs/plugin-react": "^5.0.4",
     "autoprefixer": "^10.4.21",
     "postcss": "^8.5.6",

@@ -15,6 +15,7 @@
 
 - [设计文档索引](design-docs/index.md)
 - [Project Context Compiler MVP 设计摘要](design-docs/2026-06-04-project-context-compiler-mvp.md)
+- [原型索引](prototypes/README.md)
 - [执行计划和交接规范](exec-plans/README.md)
 - [当前 active 执行目录](exec-plans/active/)
 - [已完成执行目录](exec-plans/completed/)

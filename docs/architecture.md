@@ -3,7 +3,7 @@
 Project Context Compiler 是一个 LLM-first、evidence-grounded、human-gated requirement compiler。核心流程来自 `MVP_Spec.md`：
 
 ```text
-资料 -> ContentBlock -> Claim -> 候选 Requirement -> 人工审核 -> Approved Requirement -> Task DAG -> Symphony Markdown
+资料 -> ContentBlock 证据核验 -> Claim -> 候选 Requirement -> 人工审核 -> Approved Requirement -> Task DAG -> Symphony Markdown
 ```
 
 ## 后端结构（Backend Structure）
@@ -28,7 +28,7 @@ backend/tests/Pcc.UnitTests/Pcc.UnitTests.csproj
 
 ## 前端结构（Frontend Structure）
 
-前端位于 `frontend/`，使用 React、Vite、TypeScript、TanStack Query、Tailwind CSS 和 React Flow。
+前端位于 `frontend/`，使用 React、Vite、TypeScript、TanStack Query、Ant Design、Tailwind CSS 和 React Flow。
 
 关键入口：
 
@@ -39,7 +39,55 @@ frontend/src/api/client.ts
 frontend/src/types.ts
 ```
 
-前端通过 API client 调用后端，不直接复制后端状态机和导出规则。
+Ant Design 是可见组件和交互状态的主体系，`ConfigProvider` 在根组件配置后台主题、紧凑密度、圆角和主色。Tailwind CSS 只作为外层布局和响应式工具类，不深度覆盖 `.ant-*` 组件内部样式。React Flow 只用于任务详情诊断视图，不作为任务列表主入口。
+
+当前前端路由直接对应工作流后台：
+
+```text
+/projects
+/projects/:projectId/workflow/:stageKey
+```
+
+`/projects` 是项目列表页；工作台包含资料、证据核验、Claim、需求审核、任务、导出六个阶段。证据核验阶段是 Claim 抽取前的主流程 Gate，用于展示 ContentBlock 表格、详情、状态筛选、批量确认和批量忽略；模型运行记录保留在详情区诊断页签。
+
+当前六阶段 `stageKey` 分别为 `artifacts`、`evidence`、`claims`、`requirements`、`tasks`、`exports`。旧的 section 路由不保留兼容跳转。
+
+前端通过 API client 调用后端，不直接复制后端状态机和导出规则。`Pcc.Api` 从 `backend/src/Pcc.Api/wwwroot` 承载静态前端产物；更新前端后需要把 `frontend/dist` 同步到该目录。
+
+## 列表 API 契约（List API Contract）
+
+以下列表端点返回通用分页对象 `PagedResult<T>`：
+
+```text
+GET /api/projects
+GET /api/projects/{projectId}/artifacts
+GET /api/projects/{projectId}/content-blocks
+GET /api/projects/{projectId}/claims
+GET /api/projects/{projectId}/requirements
+GET /api/projects/{projectId}/tasks
+GET /api/projects/{projectId}/exports
+GET /api/projects/{projectId}/model-runs
+```
+
+分页对象字段：
+
+```text
+items
+totalCount
+pageNumber
+pageSize
+```
+
+统一查询参数：`pageNumber`、`pageSize`、`q`、`status`、`type`、`sortBy`、`sortDirection`。默认 `pageNumber=1`、`pageSize=20`，最大 `pageSize=100`。`status`、`type` 和 `sortBy` 必须通过各端点白名单校验；无效参数返回 `400` 和 `InvalidQuery` 错误。`GET /api/projects/{projectId}/content-blocks` 的 `status` 使用 `ContentBlock.VerificationStatus`，即 `Pending`、`Confirmed`、`Ignored`。`task-dependencies` 支持可选 `taskId`，用于查询选中任务的依赖邻域，避免默认加载全量 DAG。
+
+ContentBlock 核验操作：
+
+```text
+PUT /api/content-blocks/{contentBlockId}/review
+PUT /api/projects/{projectId}/content-blocks/review
+```
+
+当前没有登录系统，核验人沿用人工审核默认值 `PM`。旧 ContentBlock 的 `VerificationStatus` 默认为 `Pending`。
 
 ## 核心边界（Core Contracts）
 
@@ -47,6 +95,7 @@ frontend/src/types.ts
 - Mock provider 用于本地端到端闭环和测试。
 - Local Codex provider 必须创建独立 run 目录，写入 `instructions.md`、`request.json`、`output.schema.json`，并只从 `output.json` 读取结果。
 - Provider 输出必须 schema validation；校验失败不能落业务数据。
+- Claim 抽取前必须处理项目内全部 ContentBlock，且至少有一个 `Confirmed` ContentBlock；抽取只使用 `Confirmed` 块。
 - Requirement 审核必须绑定具体 `RequirementVersion`。
 - Task 和 Export 必须绑定 Approved Requirement 及其 version。
 

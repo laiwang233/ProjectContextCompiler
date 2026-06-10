@@ -39,7 +39,22 @@ public sealed class ContentBlock
     public int OrderIndex { get; set; }
     public decimal Confidence { get; set; }
     public string? MetadataJson { get; set; }
+    public ContentBlockVerificationStatus VerificationStatus { get; set; } = ContentBlockVerificationStatus.Pending;
+    public string? ReviewedBy { get; set; }
+    public DateTimeOffset? ReviewedAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    public void Review(ContentBlockVerificationStatus status, string reviewerName)
+    {
+        if (status is not (ContentBlockVerificationStatus.Confirmed or ContentBlockVerificationStatus.Ignored))
+        {
+            throw new DomainRuleViolationException("ContentBlock review status must be Confirmed or Ignored.");
+        }
+
+        VerificationStatus = status;
+        ReviewedBy = string.IsNullOrWhiteSpace(reviewerName) ? "PM" : reviewerName.Trim();
+        ReviewedAt = DateTimeOffset.UtcNow;
+    }
 }
 
 public sealed class Claim

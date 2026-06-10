@@ -1,0 +1,118 @@
+{
+  "name": "PCC Flow v1.1 Stitch Prototype",
+  "capturedAt": "2026-06-08",
+  "stitchProjectId": "745781432599346214",
+  "designSystem": "Systematic Density",
+  "deviceType": "DESKTOP",
+  "scope": "Project list plus workflow overview plus six-stage PCC MVP flow",
+  "contactSheet": "screens/contact-sheet.png",
+  "screenshotVerification": {
+    "checkedAt": "2026-06-09",
+    "status": "accepted_with_known_risks",
+    "notes": [
+      "The retained export screenshot is the corrected layout with the right-side readiness and diagnostics panels.",
+      "The review screenshot still has minor action button truncation risk and must not be copied literally for button sizing."
+    ]
+  },
+  "canonicalStory": {
+    "projectName": "成员管理系统重构",
+    "mainRequirementId": "REQ-001",
+    "mainRequirementVersion": "v1",
+    "reviewState": "PendingReview",
+    "postApprovalState": "Approved",
+    "tasks": [
+      "TASK-001",
+      "TASK-002",
+      "TASK-003",
+      "TASK-004",
+      "TASK-005"
+    ]
+  },
+  "screens": [
+    {
+      "order": 1,
+      "title": "PCC Flow v1.1 - 项目列表",
+      "screenId": "9f1167b7a714489f8ce943ebd5391012",
+      "route": "/projects",
+      "stageKey": "projects",
+      "screenshot": "screens/01-projects.png",
+      "notes": "Project-level entry; does not force a single-project six-stage stepper."
+    },
+    {
+      "order": 2,
+      "title": "PCC Flow v1.1 - 工作台总览",
+      "screenId": "dfaf9b46fa0143a9b2a4eed8896c36b7",
+      "route": "/projects/:projectId/workflow/overview",
+      "stageKey": "overview",
+      "screenshot": "screens/02-overview.png",
+      "notes": "Project dashboard showing current Gate, next action, and six-stage progress summary."
+    },
+    {
+      "order": 3,
+      "title": "PCC Flow v1.1 - 资料",
+      "screenId": "1d8a806ac9d24705af9473a70fab2450",
+      "route": "/projects/:projectId/workflow/artifacts",
+      "stageKey": "artifacts",
+      "screenshot": "screens/03-materials.png",
+      "notes": "Artifact management, upload/paste entry, read status, and diagnostics."
+    },
+    {
+      "order": 4,
+      "title": "PCC Flow v1.1 - 证据核验",
+      "screenId": "5bed4c0c141348a38f3a2ab67cc3977c",
+      "route": "/projects/:projectId/workflow/evidence",
+      "stageKey": "evidence",
+      "screenshot": "screens/04-evidence.png",
+      "notes": "ContentBlock review table and detail panel; Gate before Claim extraction."
+    },
+    {
+      "order": 5,
+      "title": "PCC Flow v1.1 - Claim",
+      "screenId": "92c0a9c9a86242dbaa66f8d95b380afb",
+      "route": "/projects/:projectId/workflow/claims",
+      "stageKey": "claims",
+      "screenshot": "screens/05-claim.png",
+      "notes": "Claim table, evidence references, and generate candidate Requirement action."
+    },
+    {
+      "order": 6,
+      "title": "PCC Flow v1.1 - 需求审核",
+      "screenId": "108645a102394d45b6a4498474530176",
+      "route": "/projects/:projectId/workflow/requirements",
+      "stageKey": "requirements",
+      "screenshot": "screens/06-review.png",
+      "notes": "Human review before approval; REQ-001 v1 is PendingReview on this page."
+    },
+    {
+      "order": 7,
+      "title": "PCC Flow v1.1 - 任务",
+      "screenId": "9710f3b66d0f4b388450bd1e4f338886",
+      "route": "/projects/:projectId/workflow/tasks",
+      "stageKey": "tasks",
+      "screenshot": "screens/07-tasks.png",
+      "notes": "Task generation and diagnostics from REQ-001 v1 Approved."
+    },
+    {
+      "order": 8,
+      "title": "PCC Flow v1.1 - 导出 (修正布局)",
+      "screenId": "803665c3844546d5abfe237e8d89eebc",
+      "route": "/projects/:projectId/workflow/exports",
+      "stageKey": "exports",
+      "screenshot": "screens/08-export.png",
+      "notes": "Current retained export prototype; includes Markdown preview, readiness, included/excluded, checklist, history, and diagnostics."
+    }
+  ],
+  "gateRules": [
+    "LLM/Codex output is candidate content only.",
+    "Generated Requirement starts as PendingReview.",
+    "PendingReview, Rejected, and Deferred Requirements cannot generate tasks.",
+    "Tasks must bind RequirementId and RequirementVersionId.",
+    "Symphony Markdown exports only tasks derived from Approved Requirements.",
+    "ModelRun is represented in diagnostics panels, not as a standalone page."
+  ],
+  "knownRisks": [
+    "The review action area screenshot has minor truncation risk; implementation must show Approve, ApproveWithAssumptions, RequestClarification, Reject, and Defer in full.",
+    "The export screen title includes '(修正布局)' because this is the retained corrected layout in Stitch.",
+    "Prototype counts are illustrative; key object IDs, states, and Gate rules are the facts to preserve."
+  ]
+}

@@ -7,9 +7,10 @@
 1. 先读本文件，确认语言、文档、工作边界和验证要求。
 2. 需要理解产品目标时，读 `MVP_Spec.md`，再读 `docs/design-docs/index.md`。
 3. 需要理解工程结构时，读 `docs/architecture.md`。
-4. 需要运行或验证时，读 `docs/operations.md` 和 `docs/testing.md`。
-5. 需要继续当前里程碑时，读 `docs/exec-plans/README.md`，再读 `docs/exec-plans/active/` 中的对应交接文件。
-6. 需要理解长期约束和历史取舍时，读 `docs/decisions.md`。
+4. 涉及前端 UI、布局、样式、交互状态或界面文案修改时，在读取或修改 `frontend/` 代码前必须先读 `docs/architecture.md` 的前端结构说明和 `docs/decisions.md` 的 Ant Design 工作流后台决策。
+5. 需要运行或验证时，读 `docs/operations.md` 和 `docs/testing.md`。
+6. 需要继续当前里程碑时，读 `docs/exec-plans/README.md`，再读 `docs/exec-plans/active/` 中的对应交接文件。
+7. 需要理解长期约束和历史取舍时，读 `docs/decisions.md`。
 
 ## 语言规范
 
@@ -23,6 +24,8 @@
 - `MVP_Spec.md`：产品范围、领域模型、硬闸门和分阶段实现的原始规格。
 - `docs/README.md`：repo-local knowledge store 索引。
 - `docs/design-docs/`：长期产品和架构设计规格。
+- `docs/architecture.md`：工程结构、前端组件体系、静态承载方式和列表 API 契约。
+- `docs/decisions.md`：长期架构、流程和前端后台工作台取舍。
 - `docs/exec-plans/active/`：当前执行计划、进度、决策和交接状态。
 - `docs/exec-plans/completed/`：已完成并收口的执行计划。
 - `docs/exec-plans/tech-debt-tracker.md`：执行中发现但不属于当前里程碑的后续事项。
@@ -36,6 +39,7 @@
 - `Pcc.Infrastructure` 实现 EF Core、文件存储、结构化生成 provider、导出和业务服务编排。
 - `Pcc.Api` 只负责 hosting、DI、Minimal API endpoint、Swagger/Scalar 和静态前端承载。
 - 前端代码保持在 `frontend/` 内，通过 `frontend/src/api/client.ts` 调后端 API，不直接复制后端业务规则。
+- 所有前端 UI 修改必须遵守 Ant Design 工作流后台边界，优先复用 AntD 核心组件、主题 token 和企业后台式交互模式。
 
 ## 产品硬规则
 
@@ -82,3 +86,10 @@ dotnet test ProjectContextCompiler.slnx --filter FullyQualifiedName~Documentatio
 - 如果当前工作直接发生在 `master`，不要直接创建 PR；完成验证和 commit 前，先说明当前分支边界并等待用户确认是否需要补建里程碑分支。
 - 如果工作树包含用户或其他工具产生的无关改动，不要回滚；提交前只 stage 当前任务相关文件，并在最终说明中列出未纳入的改动。
 - 提交前必须运行当前任务要求的验证命令；验证失败时不要 commit，先修复或明确记录阻塞。
+
+## 文档
+
+- 当面向用户的行为发生变化时，需要检查是否需要同步更新文档、示例或变更日志。
+- 公开文档中只能包含公开信息，或本仓库中可见的行为说明。
+- 保留现有术语和 frontmatter。
+- 在最终交付前，运行文档格式化和构建检查。

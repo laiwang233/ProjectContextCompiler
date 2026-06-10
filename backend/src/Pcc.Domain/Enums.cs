@@ -38,6 +38,13 @@ public enum ContentBlockType
     Unknown
 }
 
+public enum ContentBlockVerificationStatus
+{
+    Pending,
+    Confirmed,
+    Ignored
+}
+
 public enum ClaimType
 {
     Requirement,

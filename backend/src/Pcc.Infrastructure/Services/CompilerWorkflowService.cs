@@ -39,16 +39,32 @@ public sealed class CompilerWorkflowService(
         return await ToProjectDtoAsync(project, ct);
     }
 
-    public async Task<IReadOnlyList<ProjectDto>> GetProjectsAsync(CancellationToken ct)
+    public async Task<PagedResult<ProjectDto>> GetProjectsAsync(ListQueryRequest request, CancellationToken ct)
     {
-        var projects = await db.Projects.OrderByDescending(project => project.UpdatedAt).ToListAsync(ct);
+        EnsureSupportedFilters(request, statusSupported: false, typeSupported: false);
+        var query = db.Projects.AsQueryable();
+        var q = NormalizeText(request.Q);
+        if (q is not null)
+        {
+            query = query.Where(project =>
+                project.Name.ToLower().Contains(q)
+                || (project.Description != null && project.Description.ToLower().Contains(q)));
+        }
+
+        query = SortProjects(query, request);
+        var page = NormalizeListQuery(request);
+        var totalCount = await query.CountAsync(ct);
+        var projects = await query
+            .Skip((page.PageNumber - 1) * page.PageSize)
+            .Take(page.PageSize)
+            .ToListAsync(ct);
         var dtos = new List<ProjectDto>();
         foreach (var project in projects)
         {
             dtos.Add(await ToProjectDtoAsync(project, ct));
         }
 
-        return dtos;
+        return new PagedResult<ProjectDto>(dtos, totalCount, page.PageNumber, page.PageSize);
     }
 
     public async Task<ProjectDto> GetProjectAsync(Guid projectId, CancellationToken ct)
@@ -118,13 +134,29 @@ public sealed class CompilerWorkflowService(
         return artifact.ToDto();
     }
 
-    public async Task<IReadOnlyList<ArtifactDto>> GetArtifactsAsync(Guid projectId, CancellationToken ct)
+    public async Task<PagedResult<ArtifactDto>> GetArtifactsAsync(Guid projectId, ListQueryRequest request, CancellationToken ct)
     {
-        return await db.Artifacts
-            .Where(artifact => artifact.ProjectId == projectId)
-            .OrderByDescending(artifact => artifact.CreatedAt)
-            .Select(artifact => artifact.ToDto())
-            .ToListAsync(ct);
+        var query = db.Artifacts.Where(artifact => artifact.ProjectId == projectId);
+        var q = NormalizeText(request.Q);
+        if (q is not null)
+        {
+            query = query.Where(artifact =>
+                artifact.Title.ToLower().Contains(q)
+                || (artifact.OriginalFileName != null && artifact.OriginalFileName.ToLower().Contains(q)));
+        }
+
+        if (ParseOptionalEnum<ArtifactReadStatus>(request.Status, "status") is { } status)
+        {
+            query = query.Where(artifact => artifact.ReadStatus == status);
+        }
+
+        if (ParseOptionalEnum<ArtifactType>(request.Type, "type") is { } type)
+        {
+            query = query.Where(artifact => artifact.Type == type);
+        }
+
+        query = SortArtifacts(query, request);
+        return await ToPagedResultAsync(query, request, artifact => artifact.ToDto(), ct);
     }
 
     public async Task<ArtifactDto> GetArtifactAsync(Guid artifactId, CancellationToken ct)
@@ -206,14 +238,68 @@ public sealed class CompilerWorkflowService(
             .ToListAsync(ct);
     }
 
-    public async Task<IReadOnlyList<ContentBlockDto>> GetProjectContentBlocksAsync(Guid projectId, CancellationToken ct)
+    public async Task<PagedResult<ContentBlockDto>> GetProjectContentBlocksAsync(Guid projectId, ListQueryRequest request, CancellationToken ct)
     {
-        return await db.ContentBlocks
-            .Where(block => block.ProjectId == projectId)
+        EnsureSupportedFilters(request, statusSupported: true, typeSupported: true);
+        var query = db.ContentBlocks.Where(block => block.ProjectId == projectId);
+        var q = NormalizeText(request.Q);
+        if (q is not null)
+        {
+            query = query.Where(block =>
+                block.Text.ToLower().Contains(q)
+                || (block.LocationLabel != null && block.LocationLabel.ToLower().Contains(q)));
+        }
+
+        if (ParseOptionalEnum<ContentBlockVerificationStatus>(request.Status, "status") is { } status)
+        {
+            query = query.Where(block => block.VerificationStatus == status);
+        }
+
+        if (ParseOptionalEnum<ContentBlockType>(request.Type, "type") is { } type)
+        {
+            query = query.Where(block => block.Type == type);
+        }
+
+        query = SortContentBlocks(query, request);
+        return await ToPagedResultAsync(query, request, block => block.ToDto(), ct);
+    }
+
+    public async Task<ContentBlockDto> ReviewContentBlockAsync(Guid contentBlockId, ReviewContentBlockRequest request, CancellationToken ct)
+    {
+        var block = await FindContentBlockAsync(contentBlockId, ct);
+        ReviewContentBlock(block, request.VerificationStatus, request.ReviewerName);
+        await TouchProjectAsync(block.ProjectId, ct);
+        await db.SaveChangesAsync(ct);
+        return block.ToDto();
+    }
+
+    public async Task<IReadOnlyList<ContentBlockDto>> ReviewContentBlocksAsync(Guid projectId, ReviewContentBlocksRequest request, CancellationToken ct)
+    {
+        ReviewStatusOrThrow(request.VerificationStatus);
+        var ids = request.ContentBlockIds.Distinct().ToArray();
+        if (ids.Length == 0)
+        {
+            return [];
+        }
+
+        var blocks = await db.ContentBlocks
+            .Where(block => block.ProjectId == projectId && ids.Contains(block.Id))
             .OrderBy(block => block.CreatedAt)
             .ThenBy(block => block.OrderIndex)
-            .Select(block => block.ToDto())
             .ToListAsync(ct);
+        if (blocks.Count != ids.Length)
+        {
+            throw new KeyNotFoundException("ContentBlock not found.");
+        }
+
+        foreach (var block in blocks)
+        {
+            ReviewContentBlock(block, request.VerificationStatus, request.ReviewerName);
+        }
+
+        await TouchProjectAsync(projectId, ct);
+        await db.SaveChangesAsync(ct);
+        return blocks.Select(block => block.ToDto()).ToArray();
     }
 
     public async Task<IReadOnlyList<ClaimDto>> ExtractClaimsAsync(Guid projectId, CancellationToken ct)
@@ -236,10 +322,22 @@ public sealed class CompilerWorkflowService(
         {
             return [];
         }
+        if (blocks.Any(block => block.VerificationStatus == ContentBlockVerificationStatus.Pending))
+        {
+            throw new ContentBlocksNotVerifiedException(projectId);
+        }
+
+        var confirmedBlocks = blocks
+            .Where(block => block.VerificationStatus == ContentBlockVerificationStatus.Confirmed)
+            .ToArray();
+        if (confirmedBlocks.Length == 0)
+        {
+            throw new NoConfirmedContentBlocksException(projectId);
+        }
 
         var input = JsonDefaults.Serialize(new ClaimExtractionInput(projectId)
         {
-            ContentBlocks = blocks.Select(block => new ContentBlockInput(
+            ContentBlocks = confirmedBlocks.Select(block => new ContentBlockInput(
                 block.Id,
                 block.OrderIndex,
                 block.Text,
@@ -253,7 +351,7 @@ public sealed class CompilerWorkflowService(
             ct);
         var envelope = JsonDefaults.Deserialize<ClaimsEnvelope>(resultJson)
             ?? new ClaimsEnvelope([]);
-        var blockById = blocks.ToDictionary(block => block.Id);
+        var blockById = confirmedBlocks.ToDictionary(block => block.Id);
         var claims = envelope.Claims
             .Where(draft => draft.ContentBlockIds.Count > 0)
             .Select(draft => ToClaim(projectId, draft, blockById))
@@ -265,14 +363,31 @@ public sealed class CompilerWorkflowService(
         return claims.Select(claim => claim.ToDto()).ToArray();
     }
 
-    public async Task<IReadOnlyList<ClaimDto>> GetClaimsAsync(Guid projectId, CancellationToken ct)
+    public async Task<PagedResult<ClaimDto>> GetClaimsAsync(Guid projectId, ListQueryRequest request, CancellationToken ct)
     {
-        return await db.Claims
+        var query = db.Claims
             .Include(claim => claim.Evidence)
-            .Where(claim => claim.ProjectId == projectId)
-            .OrderBy(claim => claim.CreatedAt)
-            .Select(claim => claim.ToDto())
-            .ToListAsync(ct);
+            .Where(claim => claim.ProjectId == projectId);
+        var q = NormalizeText(request.Q);
+        if (q is not null)
+        {
+            query = query.Where(claim =>
+                claim.Subject.ToLower().Contains(q)
+                || claim.Text.ToLower().Contains(q));
+        }
+
+        if (ParseOptionalEnum<ClaimStatus>(request.Status, "status") is { } status)
+        {
+            query = query.Where(claim => claim.Status == status);
+        }
+
+        if (ParseOptionalEnum<ClaimType>(request.Type, "type") is { } type)
+        {
+            query = query.Where(claim => claim.Type == type);
+        }
+
+        query = SortClaims(query, request);
+        return await ToPagedResultAsync(query, request, claim => claim.ToDto(), ct);
     }
 
     public async Task<ClaimDto> GetClaimAsync(Guid claimId, CancellationToken ct)
@@ -374,12 +489,30 @@ public sealed class CompilerWorkflowService(
         return requirements.Select(requirement => requirement.ToDto()).ToArray();
     }
 
-    public async Task<IReadOnlyList<RequirementDto>> GetRequirementsAsync(Guid projectId, CancellationToken ct)
+    public async Task<PagedResult<RequirementDto>> GetRequirementsAsync(Guid projectId, ListQueryRequest request, CancellationToken ct)
     {
-        return await LoadRequirements(projectId)
-            .OrderByDescending(requirement => requirement.UpdatedAt)
-            .Select(requirement => requirement.ToDto())
-            .ToListAsync(ct);
+        var query = LoadRequirements(projectId);
+        var q = NormalizeText(request.Q);
+        if (q is not null)
+        {
+            query = query.Where(requirement =>
+                requirement.Title.ToLower().Contains(q)
+                || requirement.Summary.ToLower().Contains(q)
+                || (requirement.Module != null && requirement.Module.ToLower().Contains(q)));
+        }
+
+        if (ParseOptionalEnum<RequirementStatus>(request.Status, "status") is { } status)
+        {
+            query = query.Where(requirement => requirement.Status == status);
+        }
+
+        if (ParseOptionalEnum<RequirementType>(request.Type, "type") is { } type)
+        {
+            query = query.Where(requirement => requirement.RequirementType == type);
+        }
+
+        query = SortRequirements(query, request);
+        return await ToPagedResultAsync(query, request, requirement => requirement.ToDto(), ct);
     }
 
     public async Task<RequirementDto> GetRequirementAsync(Guid requirementId, CancellationToken ct)
@@ -503,13 +636,29 @@ public sealed class CompilerWorkflowService(
         return tasks.Select(task => task.ToDto()).ToArray();
     }
 
-    public async Task<IReadOnlyList<OrchestrationTaskDto>> GetTasksAsync(Guid projectId, CancellationToken ct)
+    public async Task<PagedResult<OrchestrationTaskDto>> GetTasksAsync(Guid projectId, ListQueryRequest request, CancellationToken ct)
     {
-        return await db.OrchestrationTasks
-            .Where(task => task.ProjectId == projectId)
-            .OrderBy(task => task.CreatedAt)
-            .Select(task => task.ToDto())
-            .ToListAsync(ct);
+        var query = db.OrchestrationTasks.Where(task => task.ProjectId == projectId);
+        var q = NormalizeText(request.Q);
+        if (q is not null)
+        {
+            query = query.Where(task =>
+                task.Title.ToLower().Contains(q)
+                || task.Description.ToLower().Contains(q));
+        }
+
+        if (ParseOptionalEnum<OrchestrationTaskStatus>(request.Status, "status") is { } status)
+        {
+            query = query.Where(task => task.Status == status);
+        }
+
+        if (ParseOptionalEnum<OrchestrationTaskType>(request.Type, "type") is { } type)
+        {
+            query = query.Where(task => task.TaskType == type);
+        }
+
+        query = SortTasks(query, request);
+        return await ToPagedResultAsync(query, request, task => task.ToDto(), ct);
     }
 
     public async Task<OrchestrationTaskDto> GetTaskAsync(Guid taskId, CancellationToken ct)
@@ -542,15 +691,22 @@ public sealed class CompilerWorkflowService(
         return task.ToDto();
     }
 
-    public async Task<IReadOnlyList<TaskDependencyDto>> GetTaskDependenciesAsync(Guid projectId, CancellationToken ct)
+    public async Task<IReadOnlyList<TaskDependencyDto>> GetTaskDependenciesAsync(Guid projectId, Guid? taskId, CancellationToken ct)
     {
         var taskIds = await db.OrchestrationTasks
             .Where(task => task.ProjectId == projectId)
             .Select(task => task.Id)
             .ToListAsync(ct);
-        return await db.TaskDependencies
+        var query = db.TaskDependencies
             .Where(dependency => taskIds.Contains(dependency.UpstreamTaskId)
-                || taskIds.Contains(dependency.DownstreamTaskId))
+                || taskIds.Contains(dependency.DownstreamTaskId));
+        if (taskId is not null)
+        {
+            query = query.Where(dependency => dependency.UpstreamTaskId == taskId
+                || dependency.DownstreamTaskId == taskId);
+        }
+
+        return await query
             .Select(dependency => dependency.ToDto())
             .ToListAsync(ct);
     }
@@ -590,13 +746,23 @@ public sealed class CompilerWorkflowService(
         return bundle.ToDto();
     }
 
-    public async Task<IReadOnlyList<ExportBundleDto>> GetExportsAsync(Guid projectId, CancellationToken ct)
+    public async Task<PagedResult<ExportBundleDto>> GetExportsAsync(Guid projectId, ListQueryRequest request, CancellationToken ct)
     {
-        return await db.ExportBundles
-            .Where(bundle => bundle.ProjectId == projectId)
-            .OrderByDescending(bundle => bundle.CreatedAt)
-            .Select(bundle => bundle.ToDto())
-            .ToListAsync(ct);
+        EnsureSupportedFilters(request, statusSupported: false, typeSupported: true);
+        var query = db.ExportBundles.Where(bundle => bundle.ProjectId == projectId);
+        var q = NormalizeText(request.Q);
+        if (q is not null)
+        {
+            query = query.Where(bundle => bundle.Content.ToLower().Contains(q));
+        }
+
+        if (ParseOptionalEnum<ExportFormat>(request.Type, "type") is { } type)
+        {
+            query = query.Where(bundle => bundle.Format == type);
+        }
+
+        query = SortExports(query, request);
+        return await ToPagedResultAsync(query, request, bundle => bundle.ToDto(), ct);
     }
 
     public async Task<ExportBundleDto> GetExportAsync(Guid exportId, CancellationToken ct)
@@ -606,13 +772,27 @@ public sealed class CompilerWorkflowService(
         return export.ToDto();
     }
 
-    public async Task<IReadOnlyList<ModelRunDto>> GetModelRunsAsync(Guid projectId, CancellationToken ct)
+    public async Task<PagedResult<ModelRunDto>> GetModelRunsAsync(Guid projectId, ListQueryRequest request, CancellationToken ct)
     {
-        return await db.ModelRuns
-            .Where(run => run.ProjectId == projectId)
-            .OrderByDescending(run => run.CreatedAt)
-            .Select(run => run.ToDto())
-            .ToListAsync(ct);
+        EnsureSupportedFilters(request, statusSupported: true, typeSupported: false);
+        var query = db.ModelRuns.Where(run => run.ProjectId == projectId);
+        var q = NormalizeText(request.Q);
+        if (q is not null)
+        {
+            query = query.Where(run =>
+                run.Purpose.ToLower().Contains(q)
+                || run.ProviderName.ToLower().Contains(q)
+                || (run.ModelName != null && run.ModelName.ToLower().Contains(q))
+                || (run.Error != null && run.Error.ToLower().Contains(q)));
+        }
+
+        if (ParseOptionalEnum<ModelRunStatus>(request.Status, "status") is { } status)
+        {
+            query = query.Where(run => run.Status == status);
+        }
+
+        query = SortModelRuns(query, request);
+        return await ToPagedResultAsync(query, request, run => run.ToDto(), ct);
     }
 
     public async Task<ModelRunDto> GetModelRunAsync(Guid modelRunId, CancellationToken ct)
@@ -620,6 +800,212 @@ public sealed class CompilerWorkflowService(
         var run = await db.ModelRuns.FindAsync([modelRunId], ct)
             ?? throw new KeyNotFoundException("ModelRun not found.");
         return run.ToDto();
+    }
+
+    private static async Task<PagedResult<TDto>> ToPagedResultAsync<TEntity, TDto>(
+        IQueryable<TEntity> query,
+        ListQueryRequest request,
+        Func<TEntity, TDto> map,
+        CancellationToken ct)
+    {
+        var page = NormalizeListQuery(request);
+        var totalCount = await query.CountAsync(ct);
+        var entities = await query
+            .Skip((page.PageNumber - 1) * page.PageSize)
+            .Take(page.PageSize)
+            .ToListAsync(ct);
+        return new PagedResult<TDto>(
+            entities.Select(map).ToArray(),
+            totalCount,
+            page.PageNumber,
+            page.PageSize);
+    }
+
+    private static ListQueryRequest NormalizeListQuery(ListQueryRequest request)
+    {
+        return new ListQueryRequest
+        {
+            PageNumber = request.PageNumber < 1 ? 1 : request.PageNumber,
+            PageSize = request.PageSize <= 0 ? 20 : Math.Min(request.PageSize, 100),
+            Q = request.Q,
+            Status = request.Status,
+            Type = request.Type,
+            SortBy = request.SortBy,
+            SortDirection = request.SortDirection
+        };
+    }
+
+    private static string? NormalizeText(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? null
+            : value.Trim().ToLowerInvariant();
+    }
+
+    private static void EnsureSupportedFilters(ListQueryRequest request, bool statusSupported, bool typeSupported)
+    {
+        if (!statusSupported && !string.IsNullOrWhiteSpace(request.Status))
+        {
+            throw new ArgumentException("status is not supported by this endpoint.", nameof(request.Status));
+        }
+
+        if (!typeSupported && !string.IsNullOrWhiteSpace(request.Type))
+        {
+            throw new ArgumentException("type is not supported by this endpoint.", nameof(request.Type));
+        }
+    }
+
+    private static TEnum? ParseOptionalEnum<TEnum>(string? value, string fieldName)
+        where TEnum : struct, Enum
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        if (Enum.TryParse<TEnum>(value.Trim(), ignoreCase: true, out var parsed)
+            && Enum.IsDefined(parsed))
+        {
+            return parsed;
+        }
+
+        var allowed = string.Join(", ", Enum.GetNames<TEnum>());
+        throw new ArgumentException($"Invalid {fieldName} '{value}'. Allowed: {allowed}.", fieldName);
+    }
+
+    private static string ValidateSortBy(ListQueryRequest request, string defaultSortBy, params string[] allowed)
+    {
+        var sortBy = string.IsNullOrWhiteSpace(request.SortBy) ? defaultSortBy : request.SortBy.Trim();
+        if (allowed.Contains(sortBy, StringComparer.OrdinalIgnoreCase))
+        {
+            return sortBy.ToLowerInvariant();
+        }
+
+        throw new ArgumentException($"Unsupported sortBy '{sortBy}'. Allowed: {string.Join(", ", allowed)}.", nameof(request.SortBy));
+    }
+
+    private static bool SortDescending(ListQueryRequest request, bool defaultDescending)
+    {
+        if (string.IsNullOrWhiteSpace(request.SortDirection))
+        {
+            return string.IsNullOrWhiteSpace(request.SortBy) ? defaultDescending : false;
+        }
+
+        return request.SortDirection.Trim().ToLowerInvariant() switch
+        {
+            "asc" => false,
+            "desc" => true,
+            _ => throw new ArgumentException("sortDirection must be 'asc' or 'desc'.", nameof(request.SortDirection))
+        };
+    }
+
+    private static IQueryable<Project> SortProjects(IQueryable<Project> query, ListQueryRequest request)
+    {
+        var sortBy = ValidateSortBy(request, "updatedAt", "createdAt", "updatedAt", "name");
+        var desc = SortDescending(request, defaultDescending: true);
+        return sortBy switch
+        {
+            "createdat" => desc ? query.OrderByDescending(project => project.CreatedAt) : query.OrderBy(project => project.CreatedAt),
+            "name" => desc ? query.OrderByDescending(project => project.Name) : query.OrderBy(project => project.Name),
+            _ => desc ? query.OrderByDescending(project => project.UpdatedAt) : query.OrderBy(project => project.UpdatedAt)
+        };
+    }
+
+    private static IQueryable<Artifact> SortArtifacts(IQueryable<Artifact> query, ListQueryRequest request)
+    {
+        var sortBy = ValidateSortBy(request, "createdAt", "createdAt", "title", "type", "status");
+        var desc = SortDescending(request, defaultDescending: true);
+        return sortBy switch
+        {
+            "title" => desc ? query.OrderByDescending(artifact => artifact.Title) : query.OrderBy(artifact => artifact.Title),
+            "type" => desc ? query.OrderByDescending(artifact => artifact.Type) : query.OrderBy(artifact => artifact.Type),
+            "status" => desc ? query.OrderByDescending(artifact => artifact.ReadStatus) : query.OrderBy(artifact => artifact.ReadStatus),
+            _ => desc ? query.OrderByDescending(artifact => artifact.CreatedAt) : query.OrderBy(artifact => artifact.CreatedAt)
+        };
+    }
+
+    private static IQueryable<ContentBlock> SortContentBlocks(IQueryable<ContentBlock> query, ListQueryRequest request)
+    {
+        var sortBy = ValidateSortBy(request, "createdAt", "createdAt", "orderIndex", "type", "confidence", "status");
+        var desc = SortDescending(request, defaultDescending: false);
+        return sortBy switch
+        {
+            "orderindex" => desc ? query.OrderByDescending(block => block.OrderIndex) : query.OrderBy(block => block.OrderIndex),
+            "type" => desc ? query.OrderByDescending(block => block.Type) : query.OrderBy(block => block.Type),
+            "confidence" => desc ? query.OrderByDescending(block => block.Confidence) : query.OrderBy(block => block.Confidence),
+            "status" => desc ? query.OrderByDescending(block => block.VerificationStatus) : query.OrderBy(block => block.VerificationStatus),
+            _ => desc
+                ? query.OrderByDescending(block => block.CreatedAt).ThenByDescending(block => block.OrderIndex)
+                : query.OrderBy(block => block.CreatedAt).ThenBy(block => block.OrderIndex)
+        };
+    }
+
+    private static IQueryable<Claim> SortClaims(IQueryable<Claim> query, ListQueryRequest request)
+    {
+        var sortBy = ValidateSortBy(request, "createdAt", "createdAt", "subject", "type", "status", "confidence", "ambiguityScore");
+        var desc = SortDescending(request, defaultDescending: false);
+        return sortBy switch
+        {
+            "subject" => desc ? query.OrderByDescending(claim => claim.Subject) : query.OrderBy(claim => claim.Subject),
+            "type" => desc ? query.OrderByDescending(claim => claim.Type) : query.OrderBy(claim => claim.Type),
+            "status" => desc ? query.OrderByDescending(claim => claim.Status) : query.OrderBy(claim => claim.Status),
+            "confidence" => desc ? query.OrderByDescending(claim => claim.Confidence) : query.OrderBy(claim => claim.Confidence),
+            "ambiguityscore" => desc ? query.OrderByDescending(claim => claim.AmbiguityScore) : query.OrderBy(claim => claim.AmbiguityScore),
+            _ => desc ? query.OrderByDescending(claim => claim.CreatedAt) : query.OrderBy(claim => claim.CreatedAt)
+        };
+    }
+
+    private static IQueryable<Requirement> SortRequirements(IQueryable<Requirement> query, ListQueryRequest request)
+    {
+        var sortBy = ValidateSortBy(request, "updatedAt", "createdAt", "updatedAt", "title", "status", "confidence");
+        var desc = SortDescending(request, defaultDescending: true);
+        return sortBy switch
+        {
+            "createdat" => desc ? query.OrderByDescending(requirement => requirement.CreatedAt) : query.OrderBy(requirement => requirement.CreatedAt),
+            "title" => desc ? query.OrderByDescending(requirement => requirement.Title) : query.OrderBy(requirement => requirement.Title),
+            "status" => desc ? query.OrderByDescending(requirement => requirement.Status) : query.OrderBy(requirement => requirement.Status),
+            "confidence" => desc ? query.OrderByDescending(requirement => requirement.Confidence) : query.OrderBy(requirement => requirement.Confidence),
+            _ => desc ? query.OrderByDescending(requirement => requirement.UpdatedAt) : query.OrderBy(requirement => requirement.UpdatedAt)
+        };
+    }
+
+    private static IQueryable<OrchestrationTask> SortTasks(IQueryable<OrchestrationTask> query, ListQueryRequest request)
+    {
+        var sortBy = ValidateSortBy(request, "createdAt", "createdAt", "title", "status", "type", "readinessScore");
+        var desc = SortDescending(request, defaultDescending: false);
+        return sortBy switch
+        {
+            "title" => desc ? query.OrderByDescending(task => task.Title) : query.OrderBy(task => task.Title),
+            "status" => desc ? query.OrderByDescending(task => task.Status) : query.OrderBy(task => task.Status),
+            "type" => desc ? query.OrderByDescending(task => task.TaskType) : query.OrderBy(task => task.TaskType),
+            "readinessscore" => desc ? query.OrderByDescending(task => task.ReadinessScore) : query.OrderBy(task => task.ReadinessScore),
+            _ => desc ? query.OrderByDescending(task => task.CreatedAt) : query.OrderBy(task => task.CreatedAt)
+        };
+    }
+
+    private static IQueryable<ExportBundle> SortExports(IQueryable<ExportBundle> query, ListQueryRequest request)
+    {
+        var sortBy = ValidateSortBy(request, "createdAt", "createdAt", "format");
+        var desc = SortDescending(request, defaultDescending: true);
+        return sortBy switch
+        {
+            "format" => desc ? query.OrderByDescending(bundle => bundle.Format) : query.OrderBy(bundle => bundle.Format),
+            _ => desc ? query.OrderByDescending(bundle => bundle.CreatedAt) : query.OrderBy(bundle => bundle.CreatedAt)
+        };
+    }
+
+    private static IQueryable<ModelRun> SortModelRuns(IQueryable<ModelRun> query, ListQueryRequest request)
+    {
+        var sortBy = ValidateSortBy(request, "createdAt", "createdAt", "status", "purpose", "providerName", "finishedAt");
+        var desc = SortDescending(request, defaultDescending: true);
+        return sortBy switch
+        {
+            "status" => desc ? query.OrderByDescending(run => run.Status) : query.OrderBy(run => run.Status),
+            "purpose" => desc ? query.OrderByDescending(run => run.Purpose) : query.OrderBy(run => run.Purpose),
+            "providername" => desc ? query.OrderByDescending(run => run.ProviderName) : query.OrderBy(run => run.ProviderName),
+            "finishedat" => desc ? query.OrderByDescending(run => run.FinishedAt) : query.OrderBy(run => run.FinishedAt),
+            _ => desc ? query.OrderByDescending(run => run.CreatedAt) : query.OrderBy(run => run.CreatedAt)
+        };
     }
 
     private async Task<string> GenerateAndRecordAsync(
@@ -788,6 +1174,12 @@ public sealed class CompilerWorkflowService(
             ?? throw new KeyNotFoundException("Artifact not found.");
     }
 
+    private async Task<ContentBlock> FindContentBlockAsync(Guid contentBlockId, CancellationToken ct)
+    {
+        return await db.ContentBlocks.FindAsync([contentBlockId], ct)
+            ?? throw new KeyNotFoundException("ContentBlock not found.");
+    }
+
     private async Task<Claim> FindClaimAsync(Guid claimId, CancellationToken ct)
     {
         return await db.Claims
@@ -848,5 +1240,19 @@ public sealed class CompilerWorkflowService(
         return Enum.TryParse<TEnum>(value, ignoreCase: true, out var parsed)
             ? parsed
             : fallback;
+    }
+
+    private static void ReviewContentBlock(ContentBlock block, ContentBlockVerificationStatus status, string reviewerName)
+    {
+        ReviewStatusOrThrow(status);
+        block.Review(status, reviewerName);
+    }
+
+    private static void ReviewStatusOrThrow(ContentBlockVerificationStatus status)
+    {
+        if (status is not (ContentBlockVerificationStatus.Confirmed or ContentBlockVerificationStatus.Ignored))
+        {
+            throw new ArgumentException("ContentBlock review status must be Confirmed or Ignored.", nameof(status));
+        }
     }
 }

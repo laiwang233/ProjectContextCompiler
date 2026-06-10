@@ -5,6 +5,7 @@
 ## 当前设计
 
 - [Project Context Compiler MVP 设计摘要](2026-06-04-project-context-compiler-mvp.md)
+- [PCC Flow v1.1 Stitch 全流程原型](../prototypes/pcc-flow-v1.1-stitch.md)
 - [架构](../architecture.md)
 - [Harness repo 化指南](../harness-repoization.md)
 

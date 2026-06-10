@@ -22,6 +22,16 @@
 
 影响（Consequence）：任何绕过 `RequirementStatus.Approved`、`RequirementVersion` 绑定或证据引用的实现都应视为缺陷。
 
+## 2026-06-10：DeferredScope 不能被任务生成重新执行
+
+状态（Status）：Accepted
+
+决策（Decision）：`RequirementContent.DeferredScope` 表示本版明确延期或不做的范围。任务生成可以在说明中负向提及这些事项，例如“暂不接入真实邮件服务”，但不能把延期范围生成为可执行 Task。若 provider 输出包含延期范围内的执行性任务，业务服务必须拒绝落库并返回 `TaskGenerationNotGrounded`。
+
+原因（Reason）：人工审核批准的是当前版本需求，不是所有被证据提及的未来工作。若任务生成把 `DeferredScope` 重新变成可执行工作，会绕过人审 Gate 和版本承诺边界。
+
+影响（Consequence）：Task 生成必须同时绑定 `RequirementId`、`RequirementVersionId`、证据引用和当前版本范围；eval-style 回归测试需要覆盖延期范围的负向提及允许、正向执行拒绝和拒绝后不落任务。
+
 ## 2026-06-05：ContentBlock 证据核验是 Claim 抽取前硬 Gate
 
 状态（Status）：Accepted

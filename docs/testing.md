@@ -15,6 +15,15 @@ dotnet test ProjectContextCompiler.slnx
 当前后端测试入口：
 
 - `backend/tests/Pcc.UnitTests/CompilerWorkflowTests.cs`：覆盖 Mock workflow、ContentBlock 默认待核验、确认/忽略和批量核验、Claim 抽取前证据核验 gate、Ignored 块不参与抽取、全忽略禁止抽取、人工审核 gate、Approved 后生成任务、Symphony Markdown 导出、ModelRun 记录、Requirement review 状态流转，以及列表 API 的分页上限、文本搜索、状态/类型筛选、排序白名单和无效查询参数。
+- `backend/tests/Pcc.UnitTests/Evals/EvidenceGroundedWorkflowEvalTests.cs`：覆盖 eval-style workflow 回归场景，使用 scripted provider 验证 Confirmed evidence 上下文、人审 Gate、任务来源版本绑定、schema invalid 不落任务，以及 Task 生成不能把 `DeferredScope` 中的事项变成可执行工作。
+
+单独运行 evidence-grounded eval：
+
+```powershell
+dotnet test ProjectContextCompiler.slnx --filter FullyQualifiedName~EvidenceGroundedWorkflowEvalTests
+```
+
+这组 eval 不调用真实 LLM，也不使用 promptfoo。它验证业务护栏和 provider contract 边界；真实模型输出质量、prompt 对比和 LLM-as-judge 后续再单独接入。
 
 ## 前端验证（Frontend Verification）
 

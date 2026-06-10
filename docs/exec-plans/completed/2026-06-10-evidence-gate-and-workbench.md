@@ -19,6 +19,7 @@ Ready for Review
 
 - 领域和业务服务已实现证据核验 Gate：所有 ContentBlock 必须核验为 `Confirmed` 或 `Ignored`，且至少一个 `Confirmed` 块才能抽取 Claim。
 - `Requirement` 人工审核、Approved Requirement 任务生成、Symphony Markdown 导出硬规则保持有效。
+- Task 生成新增 `DeferredScope` 范围护栏：允许负向提及延期事项，但拒绝把延期范围生成可执行任务，并保持拒绝后不落库。
 - 列表端点已统一返回 `PagedResult<T>`，支持分页、搜索、状态/类型筛选和白名单排序；无效查询返回 `InvalidQuery`。
 - 前端已按 Ant Design 工作流后台实现六阶段主界面，并同步构建产物到 `backend/src/Pcc.Api/wwwroot`。
 - Stitch 原型和本地截图 bundle 已放入 `docs/prototypes/`，作为后续 UI 走查参考，不替代运行时实现。
@@ -31,7 +32,13 @@ Ready for Review
 dotnet test ProjectContextCompiler.slnx
 ```
 
-结果：通过，12 passed，0 failed。首次在沙箱内因 NuGet 源 TLS/凭证失败，提升权限完成 restore 后通过。
+结果：通过，19 passed，0 failed。首次在沙箱内因 NuGet 源 TLS/凭证失败，提升权限完成 restore 后通过；补充 DeferredScope 护栏后再次完整运行通过。
+
+```powershell
+dotnet test ProjectContextCompiler.slnx --filter FullyQualifiedName~EvidenceGroundedWorkflowEvalTests
+```
+
+结果：通过，7 passed，0 failed。覆盖 Confirmed evidence 上下文、人审 Gate、任务来源版本绑定、schema invalid 不落任务，以及 DeferredScope 正负向任务生成边界。
 
 ```powershell
 cd frontend
@@ -43,6 +50,7 @@ npm.cmd run build
 ## 决策（Decisions）
 
 - ContentBlock 证据核验是 Claim 抽取前硬 Gate，长期决策记录在 `docs/decisions.md`。
+- DeferredScope 不能被任务生成重新执行，长期决策记录在 `docs/decisions.md`。
 - 前端采用 Ant Design 企业后台模式，Tailwind CSS 只作为外层布局和响应式工具类。
 - 静态前端继续由 `Pcc.Api` 的 `wwwroot` 承载，前端 build 后需要同步产物。
 - 本轮只增加常用 EF Core 索引配置，不引入 migrations。

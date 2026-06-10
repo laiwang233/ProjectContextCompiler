@@ -521,13 +521,16 @@ function ArtifactsStage({ projectId }: { projectId: string }) {
   const [form] = Form.useForm<{ title: string; text: string }>();
   const isNarrow = useIsNarrow();
   const artifacts = useQuery({ queryKey: ["artifacts", projectId, query], queryFn: () => api.artifacts(projectId, query) });
+  const closePasteModal = () => {
+    setPasteOpen(false);
+    form.resetFields();
+  };
   const paste = useMutation({
     mutationFn: (values: { title: string; text: string }) => api.pasteArtifact(projectId, { ...values, type: "MeetingNotes" }),
     onSuccess: () => {
       message.success("资料已新增");
       queryClient.invalidateQueries();
-      setPasteOpen(false);
-      form.resetFields();
+      closePasteModal();
     },
     onError: (error) => message.error(errorMessage(error))
   });
@@ -646,18 +649,20 @@ function ArtifactsStage({ projectId }: { projectId: string }) {
       <Modal
         title="新增资料"
         open={pasteOpen}
-        onCancel={() => setPasteOpen(false)}
+        onCancel={closePasteModal}
         onOk={() => form.submit()}
         confirmLoading={paste.isPending}
         okText="保存"
         cancelText="取消"
-        footer={(_, { OkBtn, CancelBtn }) => (
+        footer={
           <Space>
             <Button onClick={() => form.setFieldsValue({ title: "会议记录", text: demoText })}>填入示例</Button>
-            <CancelBtn />
-            <OkBtn />
+            <Button onClick={closePasteModal}>取消</Button>
+            <Button type="primary" loading={paste.isPending} onClick={() => form.submit()}>
+              保存
+            </Button>
           </Space>
-        )}
+        }
       >
         <Form form={form} layout="vertical" onFinish={(values) => paste.mutate(values)} initialValues={{ title: "会议记录" }}>
           <Form.Item label="标题" name="title" rules={[{ required: true, message: "请输入资料标题" }]}>

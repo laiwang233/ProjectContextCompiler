@@ -170,6 +170,14 @@ requirements.MapPost("/{requirementId:guid}/tasks/generate", async (Guid require
             message = ex.Message
         });
     }
+    catch (TaskGenerationNotGroundedException ex)
+    {
+        return Results.BadRequest(new
+        {
+            error = "TaskGenerationNotGrounded",
+            message = ex.Message
+        });
+    }
 });
 
 var tasks = app.MapGroup("/api/tasks").WithTags("Tasks");

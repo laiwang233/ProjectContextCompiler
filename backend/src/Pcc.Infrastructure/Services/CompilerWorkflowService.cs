@@ -587,6 +587,8 @@ public sealed class CompilerWorkflowService(
         var envelope = JsonDefaults.Deserialize<TasksEnvelope>(resultJson)
             ?? new TasksEnvelope([]);
 
+        EnsureTaskDraftsGrounded(requirement.Id, content.DeferredScope, envelope.Tasks);
+
         var tasks = envelope.Tasks.Select(draft =>
             OrchestrationTask.CreateFromRequirement(
                 requirement,
@@ -1126,6 +1128,104 @@ public sealed class CompilerWorkflowService(
             .Select(evidence => evidence.EvidenceText)
             .Distinct()
             .ToArray();
+    }
+
+    private static void EnsureTaskDraftsGrounded(
+        Guid requirementId,
+        IReadOnlyList<string> deferredScope,
+        IReadOnlyList<TaskDraft> taskDrafts)
+    {
+        var deferredTerms = BuildDeferredScopeTerms(deferredScope);
+        if (deferredTerms.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var task in taskDrafts)
+        {
+            foreach (var text in TaskGroundingTexts(task))
+            {
+                if (ContainsDeferredExecution(text, deferredTerms))
+                {
+                    throw new TaskGenerationNotGroundedException(
+                        requirementId,
+                        $"{task.Title}: {text}");
+                }
+            }
+        }
+    }
+
+    private static IReadOnlyList<string> BuildDeferredScopeTerms(IReadOnlyList<string> deferredScope)
+    {
+        var terms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in deferredScope)
+        {
+            var term = item.Trim();
+            if (term.Length == 0)
+            {
+                continue;
+            }
+
+            terms.Add(term);
+            if (term.EndsWith("服务", StringComparison.Ordinal) && term.Length > "服务".Length)
+            {
+                terms.Add(term[..^"服务".Length]);
+            }
+        }
+
+        return terms
+            .Where(term => term.Length >= 2)
+            .OrderByDescending(term => term.Length)
+            .ToArray();
+    }
+
+    private static IEnumerable<string> TaskGroundingTexts(TaskDraft task)
+    {
+        yield return task.Title;
+        yield return task.Description;
+        yield return task.AgentPrompt;
+        foreach (var criterion in task.AcceptanceCriteria)
+        {
+            yield return criterion;
+        }
+    }
+
+    private static bool ContainsDeferredExecution(string text, IReadOnlyList<string> deferredTerms)
+    {
+        foreach (var fragment in SplitGroundingFragments(text))
+        {
+            if (!ContainsExecutionVerb(fragment) || ContainsNegativeScopeCue(fragment))
+            {
+                continue;
+            }
+
+            if (deferredTerms.Any(term => fragment.Contains(term, StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static IEnumerable<string> SplitGroundingFragments(string text)
+    {
+        return text.Split(
+                ['。', '，', ',', ';', '；', '、', '\r', '\n'],
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(fragment => fragment.Length > 0);
+    }
+
+    private static bool ContainsExecutionVerb(string text)
+    {
+        string[] verbs = ["实现", "接入", "开发", "启用", "集成", "调用", "发送"];
+        return verbs.Any(verb => text.Contains(verb, StringComparison.Ordinal));
+    }
+
+    private static bool ContainsNegativeScopeCue(string text)
+    {
+        string[] cues = ["不要", "不得", "暂不", "暂时不", "无需", "不需要", "禁止", "避免", "先不", "不接入", "不实现", "不启用", "不集成", "不调用", "不发送"];
+        return cues.Any(cue => text.Contains(cue, StringComparison.Ordinal));
     }
 
     private async Task<ProjectDto> ToProjectDtoAsync(Project project, CancellationToken ct)

@@ -19,3 +19,10 @@ public sealed class NoConfirmedContentBlocksException(Guid projectId)
 {
     public Guid ProjectId { get; } = projectId;
 }
+
+public sealed class TaskGenerationNotGroundedException(Guid requirementId, string reason)
+    : DomainRuleViolationException($"生成任务包含延期范围内的可执行工作: {reason}")
+{
+    public Guid RequirementId { get; } = requirementId;
+    public string Reason { get; } = reason;
+}
